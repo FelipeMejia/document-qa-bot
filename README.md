@@ -11,4 +11,5 @@ A FastAPI app for RAG-based document querying (in progress).
 ## Endpoints
 
 - `GET /health`: Returns {"status": "ok"}
-- `POST /generate`: Talkes {"text": "your prompt"} and returns {"response": "generated text by chatGPT"}
+- `POST /generate`: Takes {"text": "your prompt"} and returns {"response": "generated text by chatGPT"}
+- `POST /upload`: Loads a PDF and extracts its content (in progress)
