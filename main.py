@@ -4,13 +4,20 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from fastapi import UploadFile, File
+from langchain.vectorstores import Chroma
+from langchain.embeddings import OpenAIEmbeddings
 import logging
-
 import os
+import tempfile
 
 load_dotenv()
 app = FastAPI()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
+vectorstore = Chroma.from_documents(pages, embeddings, persist_directory="./chroma_db")
 
 
 class HealthCheck(BaseModel):
@@ -45,17 +52,21 @@ async def generate(prompt: Prompt):
 @app.post("/upload", response_model=Response)
 async def upload(file: UploadFile = File(...)):
     try:
-        with open("temp.pdf", "wb") as f:
-            f.write(await file.read())
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+            temp_file.write(await file.read())
+            temp_path = temp_file.name
 
-        loader = PyPDFLoader("temp.pdf")
+        loader = PyPDFLoader(temp_path)
         pages = [page async for page in loader.alazy_load()]
-
         logging.info(f"{pages[0].metadata}\n")
         logging.info(pages[0].page_content)
+
+        if not file.filename.endswith(".pdf"):
+            return {"error": "File must be a PDF"}
+
         return {"response": f"Loaded {len(pages)} pages"}
     except Exception as e:
         return {"error": f"Cannot process PDF: {str(e)}"}
     finally:
-        if os.path.exists("temp.pdf"):
-            os.remove("temp.pdf")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
